@@ -36,27 +36,32 @@ func handleConn(clientConn net.Conn) {
 	count = count + 1
 	mu.Unlock()
 
+	var (
+		backendConn net.Conn
+		err         error
+	)
 	if count%2 == 0 {
-		backendConn1, err := net.Dial("tcp", "localhost:3000")
+		backendConn, err = net.Dial("tcp", "localhost:3000")
 		if err != nil {
-			fmt.Println("connection refused")
-			return
-
+			fmt.Println("connection refused, trying backend 2")
+			backendConn, err = net.Dial("tcp", "localhost:3001")
+			if err != nil {
+				fmt.Println("all backends down")
+				return
+			}
 		}
-		defer backendConn1.Close()
-		go io.Copy(backendConn1, clientConn)
-		io.Copy(clientConn, backendConn1)
-
 	} else {
-		backendConn2, err2 := net.Dial("tcp", "localhost:3001")
-		if err2 != nil {
-			fmt.Println("connection 2 refused")
-			return
+		backendConn, err = net.Dial("tcp", "localhost:3001")
+		if err != nil {
+			fmt.Println("connection 2 refused, trying backend 1")
+			backendConn, err = net.Dial("tcp", "localhost:3000")
+			if err != nil {
+				fmt.Println("all backends down")
+				return
+			}
 		}
-		defer backendConn2.Close()
-
-		go io.Copy(backendConn2, clientConn)
-		io.Copy(clientConn, backendConn2)
-
 	}
+	defer backendConn.Close()
+	go io.Copy(backendConn, clientConn)
+	io.Copy(clientConn, backendConn)
 }
